@@ -9,8 +9,7 @@ import uuid
 
 load_dotenv()
 
-# TOKEN = os.getenv("DISCORD_TOKEN")
-TOKEN = ""
+TOKEN = os.getenv("DISCORD_TOKEN")
 AI_SERVER_URL = "http://localhost:5005/chat"
 
 # 設定要接收訊息的權限
@@ -56,7 +55,32 @@ async def on_message(message):
             
             # 將文字轉語音 + 上傳檔案
             audio_file = await text_to_speech(ai_reply)
-            await message.channel.send(file=discord.File(audio_file))
+            #await message.channel.send(file=discord.File(audio_file))
+            # 如果使用者在語音頻道中，bot 就加入並播放語音
+            if message.author.voice and message.author.voice.channel:
+                voice_channel = message.author.voice.channel
+
+                 # 加入語音頻道（若已在就重用）
+                vc = discord.utils.get(bot.voice_clients, guild=message.guild)
+                if not vc or not vc.is_connected():
+                     vc = await voice_channel.connect()
+
+                 # 播放 mp3
+                if vc.is_playing():
+                    vc.stop()
+                vc.play(discord.FFmpegPCMAudio(audio_file))
+
+                # 等待播放完畢再離開或刪除
+                while vc.is_playing():
+                    await asyncio.sleep(1)
+
+                await vc.disconnect()
+                os.remove(audio_file)
+
+            else:
+                # 沒在語音頻道就改回用檔案上傳
+                await message.channel.send(file=discord.File(audio_file))
+                os.remove(audio_file)
 
             # 用完後刪除檔案避免堆積
             os.remove(audio_file)
