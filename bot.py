@@ -1,10 +1,16 @@
 import discord
 from discord.ext import commands
 import requests
-from dotenv import load_dotenv
+from dotenv import load_dotenv  
 import os
+import asyncio
+from edge_tts import Communicate
+import uuid
 
-TOKEN = os.getenv("DISCORD_TOKEN")
+load_dotenv()
+
+# TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = ""
 AI_SERVER_URL = "http://localhost:5005/chat"
 
 # 設定要接收訊息的權限
@@ -17,6 +23,14 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"機器人已上線：{bot.user}")
+
+# 將文字轉換成語音檔（MP3），回傳檔案名稱
+async def text_to_speech(text, voice="zh-TW-YunJheNeural"):
+    filename = f"voice_{uuid.uuid4().hex[:8]}.mp3"
+    communicate = Communicate(text=text, voice=voice)
+
+    await communicate.save(filename)
+    return filename
 
 @bot.event
 async def on_message(message):
@@ -39,6 +53,13 @@ async def on_message(message):
         if res.status_code == 200: #如果出問題給一些回復
             ai_reply = res.json().get("reply", "reply not found")
             await message.channel.send(ai_reply)
+            
+            # 將文字轉語音 + 上傳檔案
+            audio_file = await text_to_speech(ai_reply)
+            await message.channel.send(file=discord.File(audio_file))
+
+            # 用完後刪除檔案避免堆積
+            os.remove(audio_file)
         else:
             await message.channel.send("flask伺服器回復錯誤")
 
