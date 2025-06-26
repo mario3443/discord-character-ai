@@ -6,6 +6,7 @@ import os
 import asyncio
 from edge_tts import Communicate
 import uuid
+from pathlib import Path
 
 load_dotenv()
 
@@ -23,69 +24,92 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"機器人已上線：{bot.user}")
 
-# 將文字轉換成語音檔（MP3），回傳檔案名稱
+# 將文字轉換為語音並儲存為 mp3 檔案
+# 使用 edge_tts 進行語音合成
+# 把檔案儲存在 ./voices 資料夾下
+# 檔名格式為 voice_<uuid>.mp3
 async def text_to_speech(text, voice="zh-TW-YunJheNeural"):
-    filename = f"voice_{uuid.uuid4().hex[:8]}.mp3"
-    communicate = Communicate(text=text, voice=voice)
+    base_dir = Path("./voices")
+    base_dir.mkdir(exist_ok=True)
 
-    await communicate.save(filename)
-    return filename
+    filename = f"voice_{uuid.uuid4().hex[:8]}.mp3"
+    filepath = base_dir / filename
+
+    communicate = Communicate(text=text, voice=voice)
+    try:
+        await communicate.save(str(filepath))
+        print(f"✅ 已儲存語音檔：{filepath}")
+        return str(filepath)
+    except Exception as e:
+        print(f"❌ 語音轉換失敗：{e}")
+        return None
 
 @bot.event
 async def on_message(message):
-    # 忽略自己講的話（避免自言自語）
     if message.author == bot.user:
         return
 
     user_input = message.content.strip()
-    print(f"收到訊息：{user_input}")
+    print(f"🗨️ 收到訊息：{user_input}")
 
-    # 把資料傳給FLASK ai_server.py
-    # 這裡假設 ai_server.py 已經在本地端運行 記得去打開
     try:
         res = requests.post(
             AI_SERVER_URL,
             json={"message": user_input},
-            timeout=5  # 避免伺服器沒回應卡住
+            timeout=5
         )
 
-        if res.status_code == 200: #如果出問題給一些回復
+        if res.status_code == 200:
             ai_reply = res.json().get("reply", "reply not found")
             await message.channel.send(ai_reply)
-            
-            # 將文字轉語音 + 上傳檔案
+
+            # 將回應文字轉成語音檔案
             audio_file = await text_to_speech(ai_reply)
-            #await message.channel.send(file=discord.File(audio_file))
-            # 如果使用者在語音頻道中，bot 就加入並播放語音
+
+            # 防呆：如果檔案根本沒成功生成就中止
+            if not audio_file or not os.path.exists(audio_file):
+                await message.channel.send("語音檔案生成失敗，請稍後再試 😢")
+                return
+
+            # 如果使用者在語音頻道中，bot 就進來播放
             if message.author.voice and message.author.voice.channel:
                 voice_channel = message.author.voice.channel
-
-                 # 加入語音頻道（若已在就重用）
                 vc = discord.utils.get(bot.voice_clients, guild=message.guild)
-                if not vc or not vc.is_connected():
-                     vc = await voice_channel.connect()
 
-                 # 播放 mp3
+                if not vc or not vc.is_connected():
+                    vc = await voice_channel.connect()
+
                 if vc.is_playing():
                     vc.stop()
+                # 如果之前有播放過，就先停止
+                print(f"🎵 開始播放語音：{audio_file}")
                 vc.play(discord.FFmpegPCMAudio(audio_file))
 
-                # 等待播放完畢再離開或刪除
                 while vc.is_playing():
                     await asyncio.sleep(1)
 
                 await vc.disconnect()
-                os.remove(audio_file)
+                await asyncio.sleep(1)
+                # 播放完畢後刪除語音檔案
+                try:
+                    if os.path.exists(audio_file):
+                        os.remove(audio_file)
+                        print(f"已刪除語音檔：{audio_file}")
+                except Exception as e:
+                    print(f"無法刪除語音檔：{e}")
 
             else:
-                # 沒在語音頻道就改回用檔案上傳
+                # 如果使用者不在語音頻道，則傳 mp3 檔案
                 await message.channel.send(file=discord.File(audio_file))
-                os.remove(audio_file)
 
-            # 用完後刪除檔案避免堆積
-            os.remove(audio_file)
+                try:
+                    os.remove(audio_file)
+                    print(f"已刪除語音檔：{audio_file}")
+                except Exception as e:
+                    print(f"無法刪除語音檔：{e}")
+
         else:
-            await message.channel.send("flask伺服器回復錯誤")
+            await message.channel.send(" Flask 伺服器回應錯誤，請稍後再試！")
 
     except Exception as e:
         print(f"❌ 發生錯誤：{e}")
