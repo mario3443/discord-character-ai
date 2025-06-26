@@ -28,7 +28,7 @@ async def on_ready():
 # 使用 edge_tts 進行語音合成
 # 把檔案儲存在 ./voices 資料夾下
 # 檔名格式為 voice_<uuid>.mp3
-async def text_to_speech(text, voice="zh-TW-YunJheNeural"):
+async def text_to_speech(text, voice="zh-TW-HsiaoChenNeural"):
     base_dir = Path("./voices")
     base_dir.mkdir(exist_ok=True)
 
@@ -56,7 +56,7 @@ async def on_message(message):
         res = requests.post(
             AI_SERVER_URL,
             json={"message": user_input},
-            timeout=5
+            timeout=10
         )
 
         if res.status_code == 200:
