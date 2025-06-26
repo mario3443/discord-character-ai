@@ -5,14 +5,16 @@ app = Flask(__name__)
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.json
-    user_message = data.get("message", "")
+    user_message = data.get("message", "").strip()
 
-    print(f"📥 收到訊息：{user_message}")
+    print(f"收到訊息：{user_message}")
 
-    # 模擬角色語氣的固定回應（之後會改成 GPT 回應）
+    # 簡單的回應邏輯
+    # 之後再加入更複雜的 AI 模型或邏輯
     response = {
-        "reply": f"（角色語氣）你說的『{user_message}』很有意思呢！"
+        "reply": f"Yo～你說『{user_message}』？這種程度的話題對我來說簡直小菜一碟😎 不過我喜歡，繼續講，我有在聽～"
     }
+
     return jsonify(response)
 
 if __name__ == "__main__":
