@@ -83,7 +83,9 @@ async def on_message(message):
                     vc.stop()
                 # 如果之前有播放過，就先停止
                 print(f"🎵 開始播放語音：{audio_file}")
-                vc.play(discord.FFmpegPCMAudio(audio_file))
+                FFMPEG_PATH = "C:/Users/www/Desktop/ffmpeg-2025-07-01-git-11d1b71c31-full_build/bin/ffmpeg.exe"
+                vc.play(discord.FFmpegPCMAudio(audio_file, executable=FFMPEG_PATH))
+                #vc.play(discord.FFmpegPCMAudio(audio_file))
 
                 while vc.is_playing():
                     await asyncio.sleep(1)
